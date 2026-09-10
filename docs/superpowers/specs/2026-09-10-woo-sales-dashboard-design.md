@@ -114,14 +114,16 @@ Example: 3 shampoos + 2 gels = 5 items sold.
 
 It is not a count of distinct products.
 
+When WooCommerce records a partial line-item quantity refund, Items Sold is reduced by the refunded quantity so that this metric represents net sold quantity. A fully refunded order is already excluded from successful sales when its order status is `refunded`.
+
 ### 3.7 Shipping
 
-Shipping card main value: total actual WooCommerce shipping amount charged on successful orders during the selected month.
+Shipping card main value: total actual WooCommerce shipping amount charged on successful orders during the selected month, reduced by any recorded shipping refund so that the metric remains net.
 
 Secondary values:
 
-- count of successful orders with paid shipping,
-- count of successful orders with free shipping.
+- count of successful orders with net paid shipping,
+- count of successful orders with zero net shipping.
 
 The plugin must read actual order shipping totals and must not hardcode the store's current €5 / free-above-threshold shipping rule.
 
@@ -133,7 +135,7 @@ If there are zero successful orders, AOV is `0` and division-by-zero must be avo
 
 ### 3.9 Items per Order
 
-`Items per Order = Total Items Sold / Successful Order Count`
+`Items per Order = Total Net Items Sold / Successful Order Count`
 
 If there are zero successful orders, the metric is `0`.
 
@@ -151,12 +153,12 @@ Two ranking modes:
 Each product row shows:
 
 - product name,
-- sold quantity,
+- net sold quantity,
 - product revenue.
 
 No product images are shown.
 
-Product revenue is the product-line amount including tax, excluding shipping, and reduced by applicable product-line refunds.
+Product revenue is the product-line amount including tax, excluding shipping, and reduced by applicable product-line refunds. Product quantity is likewise reduced by WooCommerce-recorded quantity refunds where available.
 
 ## 4. Comparison Rules
 
@@ -518,7 +520,8 @@ Implementation planning must include tests for business logic and edge cases, pa
 - unsuccessful secondary counts,
 - order `date_created` month attribution,
 - net revenue after refunds,
-- item quantity totals,
+- net item quantity after quantity refunds,
+- net shipping after shipping refunds,
 - shipping paid/free classification,
 - zero-order AOV/items-per-order behavior,
 - current partial-month comparisons,
