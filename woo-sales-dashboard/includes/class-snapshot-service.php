@@ -5,6 +5,7 @@ defined('ABSPATH') || exit;
 final class WSD_Snapshot_Service {
     public const VIP_META = '_wsd_vip_at_order_time';
     public const BUNDLE_META = '_wsd_bundle_at_order_time';
+    private ?array $bundleSkus = null;
 
     public function __construct(private WSD_Settings_Store $settings) {}
 
@@ -26,7 +27,7 @@ final class WSD_Snapshot_Service {
         if ($snapshot === '0') return false;
         $sku = $this->item_sku($item);
         if ($sku === '') return false;
-        foreach ($this->settings->get_bundle_skus() as $configured) {
+        foreach ($this->bundle_skus() as $configured) {
             if (strcasecmp((string)$configured, $sku) === 0) return true;
         }
         return false;
@@ -55,6 +56,10 @@ final class WSD_Snapshot_Service {
     public function snapshot_on_status($orderId, string $from = '', string $to = ''): void {
         if (! in_array($to, ['processing','completed'], true)) return;
         $this->snapshot_order_by_id($orderId);
+    }
+
+    private function bundle_skus(): array {
+        return $this->bundleSkus ??= $this->settings->get_bundle_skus();
     }
 
     public function item_sku($item): string {
