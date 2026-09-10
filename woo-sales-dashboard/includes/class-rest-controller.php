@@ -66,7 +66,11 @@ final class WSD_REST_Controller {
                 $changedBundle = $before !== $after;
             }
             $email = $request->get_param('reportEmail');
-            if ($email !== null) $this->settings->save_report_email(sanitize_email((string)$email));
+            if ($email !== null) {
+                $rawEmail = trim((string)$email);
+                if ($rawEmail !== '' && ! is_email($rawEmail)) return new WP_Error('wsd_invalid_email', 'Enter a valid report email.', ['status'=>400]);
+                $this->settings->save_report_email($rawEmail);
+            }
             return rest_ensure_response([
                 'bundleSkus' => $this->settings->get_bundle_skus(),
                 'reportEmail' => $this->settings->get_report_email(),
