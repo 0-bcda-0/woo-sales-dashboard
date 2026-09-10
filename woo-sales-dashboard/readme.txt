@@ -3,7 +3,7 @@ Contributors: 0-bcda-0
 Tags: woocommerce, sales, dashboard, analytics, commission
 Requires at least: 6.0
 Requires PHP: 8.0
-Stable tag: 2.0.0
+Stable tag: 2.0.2
 License: GPLv2 or later
 
 A lightweight monthly WooCommerce sales and commission dashboard with manual reporting.
@@ -24,6 +24,15 @@ The plugin uses WooCommerce APIs, supports HPOS and legacy order storage, loads 
 All dashboard and V2 actions use the `view_woocommerce_reports` capability.
 
 == Changelog ==
+
+= 2.0.2 =
+* Fixed commission override failures caused by stale V2 monthly cache payloads missing order/item identifiers.
+* Added an internal aggregate cache schema marker so future payload-shape changes invalidate cleanly without accumulating transient keys.
+
+= 2.0.1 =
+* Fix report Preview/Send/PDF with admin-ajax fallback when REST report routes are unavailable.
+* Fix clipped KPI values on desktop and mobile.
+* Add per-order VIP and per-line Bundle Count as Standard commission overrides.
 
 = 2.0.0 =
 * Added Commission tab with Standard, VIP and Bundle commission logic.
