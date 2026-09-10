@@ -9,7 +9,9 @@ final class WSD_REST_Controller {
         private WSD_Dashboard_Service $service,
         private WSD_Commission_Service $commissionService,
         private WSD_Settings_Store $settings,
-        private WSD_Report_Service $reportService
+        private WSD_Report_Service $reportService,
+        private ?WSD_Forecast_History_Store $forecastHistory = null,
+        private ?WSD_Forecast_Service $forecastService = null
     ) {}
 
     public function register(): void {
@@ -211,6 +213,23 @@ final class WSD_REST_Controller {
             $costs['marketing'], $costs['other_costs']
         );
 
+        $forecast = null;
+        if ($this->cache->is_current_month($month) && $this->forecastHistory && $this->forecastService) {
+            try {
+                $this->warm_forecast_history($month, 2);
+                $this->sync_forecast_history($month, $selected);
+                $forecast = $this->forecastService->forecast(
+                    $month,
+                    $selected,
+                    $this->forecastHistory->get_all(),
+                    (float)$costs['marketing'],
+                    new DateTimeImmutable('now', wp_timezone())
+                );
+            } catch (Throwable $e) {
+                $forecast = null;
+            }
+        }
+
         [$daily,$previousDaily] = $this->aligned_daily($selected['daily'], $previous['daily'], $month);
         $now = current_time('c');
         return [
@@ -229,6 +248,7 @@ final class WSD_REST_Controller {
             'commission' => $commission,
             'specialSales' => $selected['specialSales'],
             'costs' => ['marketing'=>$costs['marketing'],'otherCosts'=>$costs['other_costs']],
+            'forecast' => $forecast,
             'reportAudit' => ['last_sent_at'=>$costs['last_sent_at'],'last_sent_to'=>$costs['last_sent_to']],
         ];
     }
@@ -236,10 +256,44 @@ final class WSD_REST_Controller {
     private function aggregate(string $month): array {
         $revision = $this->settings->classification_revision();
         $cached = $this->cache->get($month, $revision);
-        if (is_array($cached)) return $cached;
+        if (is_array($cached)) {
+            $this->sync_forecast_history($month, $cached);
+            return $cached;
+        }
         $aggregate = $this->service->aggregate_month($month, $this->provider->get_orders_for_month($month));
         $this->cache->set($month, $aggregate, $revision);
+        $this->sync_forecast_history($month, $aggregate);
         return $aggregate;
+    }
+
+    private function sync_forecast_history(string $month, array $aggregate): void {
+        if (! $this->forecastHistory) return;
+        $costs = $this->settings->get_month($month);
+        $this->forecastHistory->put_month($month, $aggregate, (float)$costs['marketing']);
+    }
+
+    private function warm_forecast_history(string $currentMonth, int $limit = 2): void {
+        if (! $this->forecastHistory || $limit <= 0 || ! $this->cache->is_current_month($currentMonth)) return;
+        $known = array_fill_keys($this->forecastHistory->months(), true);
+        $current = DateTimeImmutable::createFromFormat('!Y-m', $currentMonth, wp_timezone());
+        if (! $current) return;
+
+        $processed = 0;
+        $seasonalMonth = $current->modify('-1 year')->format('Y-m');
+        if (! isset($known[$seasonalMonth]) && $processed < $limit) {
+            $this->aggregate($seasonalMonth);
+            $known[$seasonalMonth] = true;
+            $processed++;
+        }
+
+        $cursor = $current->modify('-1 month');
+        for ($i = 0; $i < 36 && $processed < $limit; $i++, $cursor = $cursor->modify('-1 month')) {
+            $month = $cursor->format('Y-m');
+            if (isset($known[$month])) continue;
+            $this->aggregate($month);
+            $known[$month] = true;
+            $processed++;
+        }
     }
 
     private function aligned_daily(array $selected, array $previous, string $month): array {

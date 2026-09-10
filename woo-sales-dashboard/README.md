@@ -16,9 +16,19 @@ Lightweight WooCommerce sales and commission dashboard for WordPress admin.
 - Manual monthly report preview, HTML email, test email, send audit and print/Save-as-PDF workflow.
 - No scheduled emails, PDF archive, external APIs, telemetry, CDNs, chart libraries or frontend frameworks.
 
+## Unreleased: lightweight forecast
+
+The current-month Sales tab adds **Projected Total Sales** and **Projected Net Earnings** cards with an expected low/high range. The deterministic forecast blends recent history, same-calendar-month seasonality, weekday behavior and current month-to-date pace. Early in the month history carries more weight; current-month pace gains influence as more days are observed.
+
+Forecast history is stored as compact daily Sales/Commission numeric summaries. Normal dashboard aggregation automatically warms this history, while missing history is progressively filled with at most two extra historical months per current-month request. The same month from the previous year is prioritized so seasonality becomes useful quickly. Forecasting does not add another `wc_get_orders()` path, cron job, frontend request, external API or ML/statistics dependency.
+
+Projected Net Earnings forecasts Commission to Pay from the historical Standard/VIP/Bundle commission mix. A non-zero Marketing value entered for the current month is treated as final; otherwise Marketing is estimated from recency-weighted historical values. **Other Costs are intentionally excluded from forecast Net Earnings only**; the actual Commission-tab Net Earnings calculation continues to include both Marketing and Other Costs.
+
 ## Performance
 
 Commission is calculated in the same order/line-item pass already used for monthly Sales aggregation. Uncached months use the existing paginated WooCommerce order query; Commission does not run a second full scan. Current-month aggregate cache TTL is 5 minutes and historical cache is long-lived with order-driven invalidation. Bundle classification revision is stored inside the same per-month transient payload, avoiding orphaned cache-key variants. Monthly costs and report email live in compact plugin-owned options and do not invalidate order aggregates.
+
+Forecasting works on compact numeric summaries rather than WooCommerce orders or line items. Unchanged summaries do not rewrite their WordPress option, and month-scoped order invalidation also removes the corresponding forecast-history row so it can be refreshed from the authoritative monthly aggregate.
 
 Plugin CSS and JavaScript are enqueued only on **Sales Dashboard** in WordPress admin. No dashboard assets or analytics queries run on storefront page views.
 
@@ -43,7 +53,7 @@ Shipping earns no commission and is shown only for context in the report.
 
 ## Data written by V2
 
-V2 writes only plugin-owned data: WordPress options/transients plus `_wsd_vip_at_order_time` order meta, `_wsd_bundle_at_order_time` order-item meta and `_wsd_force_standard_commission` override meta. It does not edit product prices, stock, customers, coupons, shipping or WooCommerce business settings. HPOS and legacy order storage are supported through WooCommerce CRUD/query APIs.
+V2 writes only plugin-owned data: WordPress options/transients plus `_wsd_vip_at_order_time` order meta, `_wsd_bundle_at_order_time` order-item meta and `_wsd_force_standard_commission` override meta. The forecast feature also writes the compact `wsd_forecast_history` option containing only monthly numeric daily Sales/Commission summaries and Marketing. It does not edit product prices, stock, customers, coupons, shipping or WooCommerce business settings. HPOS and legacy order storage are supported through WooCommerce CRUD/query APIs.
 
 ## V2.0.1 fixes
 

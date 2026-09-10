@@ -12,6 +12,10 @@ A lightweight monthly WooCommerce sales and commission dashboard with manual rep
 
 Woo Sales Dashboard adds a top-level Sales Dashboard page with Sales and Commission tabs. V2 adds Standard/VIP/Bundle commission calculation, historical classification snapshots, monthly Marketing and Other Costs, Bundle SKU settings, previous-month comparison charts, special-sales audit details, report preview, HTML email, test email and a print/Save-as-PDF workflow.
 
+The current development branch also adds lightweight current-month Projected Total Sales and Projected Net Earnings cards. Forecasting uses compact historical daily Sales/Commission summaries with recent-trend, same-month seasonal and weekday weighting. It does not add an external service, ML dependency, cron job, separate frontend request or dedicated WooCommerce order-query path. Historical warm-up is capped at two missing months per current-month request, prioritizing the same month from the previous year.
+
+Forecast Net Earnings uses a saved non-zero current-month Marketing value when present, otherwise a recency-weighted historical Marketing estimate. Other Costs are intentionally excluded from forecast Net Earnings only; actual Commission-tab Net Earnings continues to include both Marketing and Other Costs.
+
 The plugin uses WooCommerce APIs, supports HPOS and legacy order storage, loads assets only on its admin page, and has no external dependencies, telemetry, scheduled reports or chart libraries.
 
 == Installation ==
@@ -24,6 +28,13 @@ The plugin uses WooCommerce APIs, supports HPOS and legacy order storage, loads 
 All dashboard and V2 actions use the `view_woocommerce_reports` capability.
 
 == Changelog ==
+
+= Unreleased =
+* Added current-month Projected Total Sales and Projected Net Earnings cards with expected ranges.
+* Added lightweight deterministic forecasting using recent history, same-month seasonality, weekday behavior and bounded month-to-date pace.
+* Added compact schema-versioned forecast history with month-scoped invalidation and at most two missing historical months warmed per current-month request.
+* Forecast Marketing uses the saved current-month value when non-zero, otherwise historical weighted Marketing; Other Costs are excluded from forecast only.
+* Preserved the existing single frontend month request and single WooCommerce order-query path.
 
 = 2.0.2 =
 * Fixed commission override failures caused by stale V2 monthly cache payloads missing order/item identifiers.

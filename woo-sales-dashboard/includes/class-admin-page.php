@@ -64,6 +64,16 @@ final class WSD_Admin_Page {
                                 <div class="wsd-value wsd-skeleton" data-value>—</div><div class="wsd-meta" data-meta>&nbsp;</div><div class="wsd-chart" data-chart></div>
                             </article>
                         <?php endforeach; ?>
+                        <article class="wsd-card wsd-forecast-card" data-forecast-card="sales" hidden>
+                            <div class="wsd-card-head"><span>Projected Total Sales</span></div>
+                            <div class="wsd-value wsd-skeleton" data-value>—</div>
+                            <div class="wsd-meta" data-range>&nbsp;</div>
+                        </article>
+                        <article class="wsd-card wsd-forecast-card" data-forecast-card="netEarnings" hidden>
+                            <div class="wsd-card-head"><span>Projected Net Earnings</span></div>
+                            <div class="wsd-value wsd-skeleton" data-value>—</div>
+                            <div class="wsd-meta" data-range>&nbsp;</div>
+                        </article>
                     </section>
                     <section class="wsd-products">
                         <div class="wsd-section-head"><div><p class="wsd-eyebrow">Product performance</p><h2>Top Products</h2></div><div class="wsd-segment" role="group" aria-label="Rank products by"><button type="button" class="is-active" data-rank="quantity">Quantity</button><button type="button" data-rank="revenue">Revenue</button></div></div>
