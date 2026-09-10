@@ -27,6 +27,9 @@ final class WSD_Admin_Page {
             'locale' => str_replace('_', '-', get_locale()),
             'currency' => get_woocommerce_currency(),
             'currencySymbol' => get_woocommerce_currency_symbol(),
+            'ajaxUrl' => admin_url('admin-ajax.php'),
+            'ajaxNonce' => wp_create_nonce('wsd_report_ajax'),
+            'pluginVersion' => WSD_VERSION,
         ]);
     }
 
