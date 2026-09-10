@@ -11,6 +11,7 @@ final class WSD_Snapshot_Service {
 
     public function __construct(private WSD_Settings_Store $settings) {}
 
+
     public function is_force_standard_order($order): bool {
         return (string)$order->get_meta(self::FORCE_STANDARD_ORDER_META, true) === '1';
     }
