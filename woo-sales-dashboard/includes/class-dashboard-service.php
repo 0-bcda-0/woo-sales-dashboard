@@ -89,9 +89,11 @@ final class WSD_Dashboard_Service {
                 $productId = (int) $item->get_product_id();
                 if ($product && $product->is_type('variation')) $productId = (int) $product->get_parent_id();
                 if (! $productId) continue;
-                $parent = wc_get_product($productId);
-                $name = $parent ? $parent->get_name() : $item->get_name();
-                if (! isset($out['products'][$productId])) $out['products'][$productId] = ['id' => $productId, 'name' => $name, 'quantity' => 0.0, 'revenue' => 0.0];
+                if (! isset($out['products'][$productId])) {
+                    $parent = wc_get_product($productId);
+                    $name = $parent ? $parent->get_name() : $item->get_name();
+                    $out['products'][$productId] = ['id' => $productId, 'name' => $name, 'quantity' => 0.0, 'revenue' => 0.0];
+                }
                 $out['products'][$productId]['quantity'] += $netQty;
                 $out['products'][$productId]['revenue'] += $netLine;
             }
