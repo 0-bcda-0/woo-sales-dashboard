@@ -33,7 +33,7 @@ WooCommerce must be active. Access and all V2 actions use WooCommerce's `view_wo
 
 ## Commission semantics
 
-Only `processing` and `completed` orders are commissionable. Product line revenue includes product tax, is net of recorded line-item refunds and excludes shipping/shipping tax. Every commissionable product euro belongs to exactly one bucket: VIP, Bundle or Standard. VIP wins over Bundle.
+Only `processing` and `completed` orders are commissionable. Product line revenue includes product tax, is net of recorded line-item refunds and excludes shipping/shipping tax. Every commissionable product euro belongs to exactly one bucket: VIP, Bundle or Standard. VIP wins over Bundle unless an explicit **Count as Standard** override is enabled.
 
 `Commission to Pay = Standard Commission + VIP Commission + Bundle Commission`.
 
@@ -43,4 +43,14 @@ Shipping earns no commission and is shown only for context in the report.
 
 ## Data written by V2
 
-V2 writes only plugin-owned data: WordPress options/transients plus `_wsd_vip_at_order_time` order meta and `_wsd_bundle_at_order_time` order-item meta. It does not edit product prices, stock, customers, coupons, shipping or WooCommerce business settings. HPOS and legacy order storage are supported through WooCommerce CRUD/query APIs.
+V2 writes only plugin-owned data: WordPress options/transients plus `_wsd_vip_at_order_time` order meta, `_wsd_bundle_at_order_time` order-item meta and `_wsd_force_standard_commission` override meta. It does not edit product prices, stock, customers, coupons, shipping or WooCommerce business settings. HPOS and legacy order storage are supported through WooCommerce CRUD/query APIs.
+
+## V2.0.1 fixes
+
+- Report Preview/Send/PDF automatically falls back to WordPress admin-ajax when REST report routes are unavailable.
+- KPI values use safer line-height/padding to prevent clipping on desktop and mobile.
+- Special Sales Breakdown supports a reversible **Count as Standard** override per VIP order or Bundle line item.
+
+## V2.0.2 fix
+
+- Aggregate cache payloads carry an explicit schema marker. Old cached shapes are rejected and rebuilt, preventing write actions from receiving stale Special Sales rows without required order/item identifiers.
