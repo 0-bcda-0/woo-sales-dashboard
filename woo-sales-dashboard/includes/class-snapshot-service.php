@@ -5,9 +5,19 @@ defined('ABSPATH') || exit;
 final class WSD_Snapshot_Service {
     public const VIP_META = '_wsd_vip_at_order_time';
     public const BUNDLE_META = '_wsd_bundle_at_order_time';
+    public const FORCE_STANDARD_ORDER_META = '_wsd_force_standard_commission';
+    public const FORCE_STANDARD_ITEM_META = '_wsd_force_standard_commission';
     private ?array $bundleSkus = null;
 
     public function __construct(private WSD_Settings_Store $settings) {}
+
+    public function is_force_standard_order($order): bool {
+        return (string)$order->get_meta(self::FORCE_STANDARD_ORDER_META, true) === '1';
+    }
+
+    public function is_force_standard_item($item): bool {
+        return (string)$item->get_meta(self::FORCE_STANDARD_ITEM_META, true) === '1';
+    }
 
     public function is_vip_order($order): bool {
         $snapshot = (string) $order->get_meta(self::VIP_META, true);
