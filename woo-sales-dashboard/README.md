@@ -1,36 +1,56 @@
 # Woo Sales Dashboard
 
-A lightweight, read-only monthly WooCommerce sales dashboard for WordPress admin.
+Lightweight WooCommerce sales and commission dashboard for WordPress admin.
 
-## Features
+## V2 features
 
-- Total Sales, Orders, Items Sold, Shipping, AOV, and Items / Order
-- Daily lightweight SVG trends
-- Same-period previous-month comparisons
-- Top 5 Products ranked by Quantity or Revenue
-- Variable products aggregated to their parent
-- Net refund-aware revenue, item quantity, shipping, and product revenue
-- Mobile-first responsive admin UI
-- 5-minute current-month cache and manual Refresh
-- Long-lived historical cache with targeted invalidation
-- WooCommerce HPOS and legacy order-storage compatibility
-- No external APIs, telemetry, CDNs, chart libraries, or frontend frameworks
+- Existing monthly Sales dashboard with net sales, orders, items, shipping, AOV and Top Products.
+- Solid selected-month + dashed previous-month daily SVG trends, aligned by day.
+- Commission tab with Product, Standard, VIP and Bundle sales and commission breakdown.
+- Standard commission formula preserved exactly: `VPC = S / 1.4`; commission = `(S - VPC) + (VPC * 0.20)`.
+- VIP (`nishman_vip`) and Bundle sales use a 20% rate; VIP always takes priority over Bundle.
+- Bundle SKU Manager in Settings with add/edit/remove and WooCommerce SKU validation.
+- Stable V2 order/item classification snapshots, with current-role/current-SKU fallback for pre-V2 history.
+- Month-specific Marketing and Other Costs; these affect Net Earnings only, never Commission to Pay.
+- VIP and Bundle audit breakdowns.
+- Manual monthly report preview, HTML email, test email, send audit and print/Save-as-PDF workflow.
+- No scheduled emails, PDF archive, external APIs, telemetry, CDNs, chart libraries or frontend frameworks.
+
+## Performance
+
+Commission is calculated in the same order/line-item pass already used for monthly Sales aggregation. Uncached months use the existing paginated WooCommerce order query; Commission does not run a second full scan. Current-month aggregate cache TTL is 5 minutes and historical cache is long-lived with order-driven invalidation. Bundle classification revision is stored inside the same per-month transient payload, avoiding orphaned cache-key variants. Monthly costs and report email live in compact plugin-owned options and do not invalidate order aggregates.
+
+Plugin CSS and JavaScript are enqueued only on **Sales Dashboard** in WordPress admin. No dashboard assets or analytics queries run on storefront page views.
 
 ## Installation
 
-1. Download `woo-sales-dashboard.zip`.
-2. In WordPress open **Plugins > Add New > Upload Plugin**.
-3. Upload and activate the ZIP.
-4. Open **Sales Dashboard** in the WordPress admin menu.
+1. Upload `woo-sales-dashboard.zip` through **Plugins > Add New > Upload Plugin**.
+2. Activate **Woo Sales Dashboard**.
+3. Open **Sales Dashboard** in WordPress admin.
+4. Use **Settings** to add Bundle SKUs and the default report email.
 
-WooCommerce must be active. Access uses WooCommerce's `view_woocommerce_reports` capability.
+WooCommerce must be active. Access and all V2 actions use WooCommerce's `view_woocommerce_reports` capability.
 
-## Metric semantics
+## Commission semantics
 
-Successful sales are orders currently in `processing` or `completed`. Orders in `cancelled`, `failed`, or `refunded` are shown as a secondary negative count. `pending` and `on-hold` are ignored in v1. Orders belong to the month of their WooCommerce `date_created` in the site timezone.
+Only `processing` and `completed` orders are commissionable. Product line revenue includes product tax, is net of recorded line-item refunds and excludes shipping/shipping tax. Every commissionable product euro belongs to exactly one bucket: VIP, Bundle or Standard. VIP wins over Bundle unless an explicit **Count as Standard** override is enabled.
 
-Total Sales is net customer-paid order revenue including tax and shipping after recorded refunds. Top Product revenue includes product line tax, excludes shipping, and is net of line refunds.
+`Commission to Pay = Standard Commission + VIP Commission + Bundle Commission`.
 
-## Data safety
+`Net Earnings = Commission to Pay - Marketing - Other Costs`.
 
-The plugin does not modify orders, products, customers, inventory, coupons, shipping, taxes, or WooCommerce settings. It writes only its own WordPress transient cache entries.
+Shipping earns no commission and is shown only for context in the report.
+
+## Data written by V2
+
+V2 writes only plugin-owned data: WordPress options/transients plus `_wsd_vip_at_order_time` order meta, `_wsd_bundle_at_order_time` order-item meta and `_wsd_force_standard_commission` override meta. It does not edit product prices, stock, customers, coupons, shipping or WooCommerce business settings. HPOS and legacy order storage are supported through WooCommerce CRUD/query APIs.
+
+## V2.0.1 fixes
+
+- Report Preview/Send/PDF automatically falls back to WordPress admin-ajax when REST report routes are unavailable.
+- KPI values use safer line-height/padding to prevent clipping on desktop and mobile.
+- Special Sales Breakdown supports a reversible **Count as Standard** override per VIP order or Bundle line item.
+
+## V2.0.2 fix
+
+- Aggregate cache payloads carry an explicit schema marker. Old cached shapes are rejected and rebuilt, preventing write actions from receiving stale Special Sales rows without required order/item identifiers.

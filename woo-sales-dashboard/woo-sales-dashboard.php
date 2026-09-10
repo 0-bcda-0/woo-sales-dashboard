@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name: Woo Sales Dashboard
- * Description: Lightweight read-only monthly WooCommerce sales dashboard.
- * Version: 1.0.0
+ * Description: Lightweight WooCommerce sales and commission dashboard with manual monthly reporting.
+ * Version: 2.0.2
  * Requires PHP: 8.0
  * Requires Plugins: woocommerce
  * Author: Jan Jurjec
@@ -11,7 +11,7 @@
 
 defined('ABSPATH') || exit;
 
-define('WSD_VERSION', '1.0.0');
+define('WSD_VERSION', '2.0.2');
 define('WSD_FILE', __FILE__);
 define('WSD_PATH', plugin_dir_path(__FILE__));
 define('WSD_URL', plugin_dir_url(__FILE__));
