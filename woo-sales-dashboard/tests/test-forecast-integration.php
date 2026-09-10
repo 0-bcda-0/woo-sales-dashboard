@@ -48,7 +48,7 @@ assert_forecast_integration($productionMatches === ['class-order-data-provider.p
 $rest = file_get_contents($includes . '/class-rest-controller.php');
 assert_forecast_integration(str_contains($rest, 'warm_forecast_history($month, 2)'), 'current payload should cap progressive warm-up at two months');
 assert_forecast_integration(str_contains($rest, 'for ($i = 0; $i < 36 && $processed < $limit;'), 'history discovery must remain bounded');
-assert_forecast_integration(str_contains($rest, "'forecast' => $forecast"), 'existing month payload should carry forecast data');
+assert_forecast_integration(str_contains($rest, "'forecast' => \$forecast"), 'existing month payload should carry forecast data');
 assert_forecast_integration(! str_contains($rest, "register_rest_route('woo-sales-dashboard/v1', '/forecast'"), 'forecast must not add a second frontend REST route');
 
 $admin = file_get_contents($includes . '/class-admin-page.php');
