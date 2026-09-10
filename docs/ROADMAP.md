@@ -1,49 +1,59 @@
-# Woo Sales Dashboard — Roadmap
+# Woo Sales Dashboard — Future Development Protocol
 
 Last updated: 2026-09-10
 
-This is a feature-preparation document, not a promise that every item should be built. A future developer/AI must preserve the invariants in `PROJECT-HANDOFF.md` and create an approved design/spec before implementing material behavior changes.
+## Important: no approved future feature roadmap
 
-## Near-term production hardening
+There are currently **no user-approved future features** waiting to be implemented.
 
-First priority is source/release reconciliation: ensure every production hotfix is represented in GitHub source, tests, version metadata, changelog, and the final ZIP. Specifically retain regression coverage for report endpoint/routing failures, responsive KPI clipping, and stale cached aggregate payloads/order identifiers across upgrades. Test both cold-cache and warm-cache upgrade scenarios.
+A future AI/developer must not treat ideas, examples, inferred improvements, or technically attractive additions as requested work. New product behavior must first be explicitly requested or approved by Jan.
 
-Add a small release/version integrity check that fails packaging when the plugin header version, `WSD_VERSION`, readme stable tag, changelog target, ZIP filename/version, and expected cache schema are inconsistent.
+The purpose of this document is only to explain **how to prepare and implement a future feature safely**.
 
-## Candidate features
+## Before implementing any new feature
 
-### Manual line classification override
+1. Read `docs/PROJECT-HANDOFF.md` completely.
+2. Inspect the current source, tests, README/changelog, and latest release/version metadata.
+3. Confirm the requested behavior with the user. Do not silently expand scope.
+4. Write a short design/spec for material behavior changes, including user-visible behavior and edge cases.
+5. Identify effects on commission classification, snapshots, cache schema/revision, REST/admin-ajax contracts, report payloads, email/print output, permissions, and performance.
+6. Add a failing regression/feature test before implementation where practical.
+7. Implement the smallest compatible change.
+8. Run focused tests and the full verification suite.
+9. Review the diff for performance regressions and source/ZIP drift.
+10. Update handoff/changelog/docs only for behavior that actually exists.
+11. Run `docs/RELEASE-CHECKLIST.md` before producing a release ZIP.
 
-Useful when historical data cannot be correctly inferred from pre-V2 role/SKU state. Design it as an explicit per-order/per-line audit override, not as mutation of WooCommerce products/users or silent replacement of snapshots. Store actor/time/reason and previous/effective classification. Define precedence before coding. Add tests for VIP/Bundle/Standard conflicts and report output.
+## Architectural constraints for future work
 
-### Better report delivery diagnostics
+Preserve the existing single monthly WooCommerce aggregation pass. Do not introduce a second order scan for Commission or reporting. Use WooCommerce CRUD/query APIs for HPOS compatibility; do not add direct order-table SQL merely for convenience.
 
-Expose actionable errors for failed `wp_mail`, routing/authentication, and print-report access. Keep sending manual. Do not add cron or background retries without a separately approved requirement. Preserve the same normalized report payload for preview/email/PDF.
+Keep normal operation admin-only and lightweight: no storefront assets, telemetry, cron/background reporting, external chart libraries, or remote runtime dependencies unless a future approved design explicitly changes those constraints.
 
-### Exportable audit data
+Business formulas and classification rules belong server-side. JavaScript renders returned data and performs UI interactions; it must not become a second independent commission engine.
 
-A CSV export of the selected month's normalized commission/special-sales data could help reconciliation. Generate on demand from the already aggregated/report data; do not re-query every order separately. Escape spreadsheet-formula injection in exported cells.
+Preview, email, and print/Save-as-PDF must consume the same normalized report payload so their values cannot drift.
 
-### Monthly close / lock
+When a response shape stored in aggregate cache changes, bump the cache schema/version and add a **warm-cache upgrade regression test**. Do not rely only on TTL expiry. The V2.0.2 production incident demonstrated why this is required.
 
-Potentially allow a month to be marked reviewed/closed so accidental cost/config edits are obvious. This must not freeze legitimate WooCommerce refund corrections invisibly. Design semantics for reopening and late refunds before implementation.
+When adding fields used by frontend write actions, verify both cold-cache and pre-upgrade cached responses contain the identifiers required by the request contract.
 
-### Report notes
+## Classification changes
 
-Optional month-specific note for the employer. Keep it plugin-owned, sanitized, small, and included through the shared report payload so preview/email/print cannot diverge.
+Current classification precedence and formulas are locked behavior unless the user explicitly changes them:
 
-### Additional commission categories/rates
+`manual Count as Standard override -> otherwise VIP -> otherwise Bundle -> otherwise Standard`
 
-Do not implement generic configurable formulas casually. Current Standard/VIP/Bundle formulas are locked business rules. If future categories are needed, first design classification precedence, snapshot strategy, migration behavior, cache revision impact, reporting/audit representation, and tests. Avoid turning classification into repeated per-line database lookups.
+VIP is order-level. Bundle is line-item-level. Historical snapshot semantics must remain stable. Any future classification category requires an explicit precedence decision, snapshot/migration strategy, cache impact analysis, report/audit representation, and regression tests before implementation.
 
-### Performance observability for admins
+## API and report changes
 
-If real stores become large, consider non-invasive debug timing/count information available only on demand to authorized admins. No telemetry and no persistent high-volume logs by default. Measure before optimizing.
+All privileged actions must remain capability/nonce protected. If changing report actions, test both REST and the existing WordPress admin-ajax fallback behavior. Never expose report/customer data through unauthenticated routes.
 
-## Features intentionally not planned
+Any report field added or changed must be verified in dashboard data, preview, HTML email, and print/PDF workflow from the shared payload.
 
-No automatic scheduled report email, PDF archive, storefront dashboard, external analytics/telemetry, Chart.js/frontend framework, direct order-table analytics, or arbitrary WooCommerce editing from this plugin unless a future approved product decision explicitly changes scope.
+## Definition of ready for release
 
-## Feature implementation protocol
+A feature is not release-ready because it works in a development source tree. It is ready only when tests pass, version/cache migrations are handled, docs describe actual behavior, the final ZIP is built from the reviewed canonical source, ZIP contents are inspected, and production smoke testing succeeds.
 
-For each material feature: inspect current source/tests and handoff; write a short design with user-visible behavior and edge cases; identify cache/snapshot/report/API impacts; add failing tests; implement the smallest compatible change; run focused and full verification; perform code review; update handoff/roadmap/changelog when architecture or behavior changes; only then run the release checklist. Never use a ZIP as the only copy of new source.
+Never use a ZIP as the only copy of a source change or hotfix.
