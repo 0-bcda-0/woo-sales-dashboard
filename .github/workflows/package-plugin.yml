@@ -1,0 +1,53 @@
+name: Package Plugin
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.0'
+          coverage: none
+
+      - name: Verify PHP syntax
+        run: find woo-sales-dashboard -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+
+      - name: Verify JavaScript syntax
+        run: node --check woo-sales-dashboard/assets/js/dashboard.js
+
+      - name: Run PHP tests
+        run: |
+          set -e
+          for test in woo-sales-dashboard/tests/*.php; do
+            php "$test"
+          done
+
+      - name: Build installable ZIP
+        run: |
+          set -e
+          rm -rf package
+          mkdir -p package/woo-sales-dashboard
+          rsync -a \
+            --exclude 'tests/' \
+            --exclude 'README.md' \
+            woo-sales-dashboard/ package/woo-sales-dashboard/
+          (cd package && zip -qr ../woo-sales-dashboard-main.zip woo-sales-dashboard)
+          unzip -t woo-sales-dashboard-main.zip
+          test "$(zipinfo -1 woo-sales-dashboard-main.zip | grep -v '^woo-sales-dashboard/$' | grep -v '^woo-sales-dashboard/' | wc -l)" -eq 0
+
+      - name: Upload installable ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: woo-sales-dashboard-installable
+          path: woo-sales-dashboard-main.zip
+          if-no-files-found: error
+          retention-days: 7
