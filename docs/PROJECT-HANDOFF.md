@@ -4,60 +4,76 @@ Last updated: 2026-09-10
 
 ## Read this first
 
-This document is the durable handoff for a future developer or AI agent. Do not reconstruct business rules from screenshots, old chat messages, or the original spreadsheet when this document and the approved V2 spec answer the question. Before changing behavior, read this file, `docs/superpowers/specs/2026-09-10-woo-sales-dashboard-v2-commission-design.md`, the current source, tests, `docs/ROADMAP.md`, and `docs/RELEASE-CHECKLIST.md`.
+This is the durable handoff for a future developer or AI agent. Before changing behavior, read this file, the approved V2 spec, current source/tests, `docs/ROADMAP.md`, and `docs/RELEASE-CHECKLIST.md`. Do not reconstruct business rules from screenshots or the original spreadsheet when the current source and these documents answer the question.
 
-## Product purpose
+## Product purpose and architecture
 
-Woo Sales Dashboard is a deliberately small WordPress/WooCommerce admin plugin for monthly sales analytics, commission calculation, and manual monthly reporting. Performance and auditability are first-class requirements. It must not become a general WooCommerce management suite.
+Woo Sales Dashboard is deliberately small: WordPress admin only, WooCommerce CRUD/query APIs, HPOS compatible, no storefront analytics work, no scheduled reporting, telemetry, CDN, external fonts, frontend framework, or chart library.
 
-## Architecture that must be preserved
-
-Use WooCommerce CRUD/query APIs so HPOS and legacy order storage remain supported. Do not introduce direct analytics queries against `wp_posts`/`wp_postmeta`. Monthly Sales and Commission aggregation share the same order/line-item traversal; Commission must not trigger a second full order scan. JavaScript renders data but must not duplicate commission business formulas. CSS/JS load only on the Sales Dashboard admin page. No storefront analytics work, polling, cron reports, telemetry, CDN, external fonts, frontend framework, or chart library.
-
-The main responsibilities are intentionally separated: order provider fetches orders; dashboard service aggregates sales and line values; commission service owns deterministic formulas; snapshot service owns historical VIP/Bundle classification; settings store owns Bundle SKUs, report recipient, month costs and send audit; REST controller owns authenticated transport/actions; report service consumes the normalized data object used by dashboard/report output.
+The monthly order query and line-item traversal are shared by Sales and Commission. Do not add a second full order scan just for a new Commission widget/report field. The order provider fetches orders; dashboard service aggregates; commission service owns formulas; snapshot service owns historical classification; settings store owns Bundle SKUs/report recipient/month costs/send audit; transport controllers own authenticated actions; report service consumes the normalized data used by report outputs.
 
 ## Locked commission rules
 
-Commissionable orders are `processing` and `completed`. Commission is based on net product line revenue including product tax and line refunds, excluding shipping and shipping tax. Every line belongs to exactly one classification.
+Commissionable orders are `processing` and `completed`. Product line revenue includes product tax and line refunds, excludes shipping and shipping tax, and cannot be double-classified.
 
-Priority is VIP -> Bundle -> Standard. VIP role slug is `nishman_vip`. VIP and Bundle commission are 20%. Standard uses the explicit spreadsheet-compatible formula: `VPC = S / 1.4`; `Standard Commission = (S - VPC) + (VPC * 0.20)`. Do not replace the explicit formula merely with its equivalent percentage because the explicit form is easier to audit against the historical workbook.
+Normal automatic precedence is VIP -> Bundle -> Standard. VIP role slug is `nishman_vip`. VIP and Bundle commission are 20%. Standard preserves the spreadsheet-compatible formula: `VPC = S / 1.4`; `Standard Commission = (S - VPC) + (VPC * 0.20)`.
 
-`Commission to Pay = Standard Commission + VIP Commission + Bundle Commission` and is the amount the employer pays. Marketing and Other Costs do not reduce that payout. `Net Earnings = Commission to Pay - Marketing - Other Costs`. Shipping earns no commission and must not be subtracted a second time.
+`Commission to Pay = Standard Commission + VIP Commission + Bundle Commission`.
 
-## Historical classification
+`Net Earnings = Commission to Pay - Marketing - Other Costs`.
 
-V2 introduced `_wsd_vip_at_order_time` order meta and `_wsd_bundle_at_order_time` order-item meta. Once a V2 snapshot exists it is historical truth: later user-role or Bundle-list changes must not rewrite old classification. Pre-V2 orders without snapshots fall back to current role/current Bundle SKU configuration, so that historical fallback is inherently less exact.
+Marketing/Other Costs never reduce Commission to Pay. Shipping earns no commission and must not be subtracted a second time.
 
-If a future feature adds a manual classification override, it must be explicit, auditable, narrowly scoped, and tested against the VIP -> Bundle -> Standard priority. Never silently rewrite snapshots.
+## Historical snapshots and production manual override
 
-## Cache design
+V2 stores `_wsd_vip_at_order_time` order meta and `_wsd_bundle_at_order_time` order-item meta. Once a V2 snapshot exists it is historical truth; later user-role or Bundle-list changes must not rewrite it. Pre-V2 orders without snapshots fall back to the current role/current Bundle SKU list and therefore can be historically imperfect.
 
-There is one transient key per month. The Bundle `classification_revision` belongs inside the cached payload; it is checked on read. A revision mismatch is a cache miss and the same monthly key is overwritten. Do NOT put the revision in the transient key: doing so creates stale/orphaned keys. Current-month cache is short (5 minutes); historical cache is long-lived and invalidated by relevant order changes. Marketing/Other Costs and report-recipient edits must not cause expensive order re-aggregation.
+Production testing exposed exactly that case: an old order was being treated as NishFamily/VIP even though the customer was not VIP at the time. The approved solution is the **Count as Standard** override in Special Sales Breakdown.
 
-When the shape or meaning of cached aggregate data changes, bump the cache schema/prefix or otherwise guarantee old payloads cannot be interpreted as the new schema. A plugin version bump alone is not sufficient cache migration.
+The override is intentionally narrow:
 
-## Reporting
+- VIP row: override applies to the entire order and forces its product lines to Standard commission.
+- Bundle row: override applies only to that Bundle line item and forces that line to Standard.
+- Override wins before automatic VIP/Bundle classification.
+- The special-sales row remains visible while overridden and the checkbox remains reversible, so an admin can restore automatic special-rate treatment.
+- Do not rewrite the historical VIP/Bundle snapshot to implement this override. It is separate plugin-owned override state.
+- Changing an override must invalidate only the affected order month, not globally flush all monthly aggregates.
+- The write request must contain a valid `orderId`; Bundle additionally needs its item identifier. `itemId = 0` is valid for an order-level VIP override.
 
-Reporting is manual: select month -> verify/edit costs -> Preview -> Send Email and/or print/Save as PDF. Dashboard, preview, email and PDF/print must consume the same normalized report data. Email is HTML and must contain the useful report itself, not only a link. Send Test Email exists. Keep only lightweight last-sent metadata; do not add a PDF archive unless requirements explicitly change.
+Any future change to this precedence or scope requires explicit user approval and regression tests.
 
-Report endpoints/actions are authenticated and require `view_woocommerce_reports`. If transport fallbacks are retained (for hosts where a REST/report route can 404), both primary and fallback paths must enforce equivalent nonce/capability checks and call the same report service; never maintain two business implementations.
+## Cache design and V2.0.2 lesson
 
-## Production lessons from V2 rollout
+Use one transient key per month. Bundle `classification_revision` is metadata inside the cached payload and is checked on read. A mismatch is a miss and overwrites the same monthly key. Do not put revision values into transient key names.
 
-The first V2 production cycle exposed three classes of issues worth preserving as regression knowledge: report-route 404 behavior on the target WordPress environment, mobile/KPI visual clipping, and stale-cache/data-shape problems around order identifiers after a code change. The lesson is not to patch only the visible symptom: release verification must exercise actual WordPress routing, responsive rendering, cache migration, and a warm-cache upgrade path.
+Current-month cache is short (about five minutes); historical cache is long-lived with targeted order invalidation. Marketing/Other Costs/report-recipient changes must not force expensive order aggregation.
 
-A release ZIP is not the source of truth by itself. GitHub source, plugin version metadata, documentation, tests, and ZIP contents must describe the same release. Never ship a hotfix that exists only inside a locally rebuilt ZIP.
+**Critical migration rule:** whenever the cached aggregate response shape or meaning changes, bump an explicit cache schema/version (or equivalent schema discriminator). A plugin version bump alone is not a cache migration.
 
-## Current repository-state warning
+This became a real production bug during the V2 rollout. A pre-upgrade cached `specialSales` payload did not contain the newly required `orderId`. The new UI rendered the checkbox but serialized no `orderId`, causing `POST /commission-override` to return `wsd_invalid_override` / HTTP 400. V2.0.2 fixed this by rejecting old aggregate schema and rebuilding the month. Every future cached-shape change needs a **warm-cache upgrade regression test**, not just cold-cache tests.
 
-At the time this handoff was written, the `feat/v2-commission` branch source identifies itself as V2.0.0 and its committed distribution artifacts are V2.0.0. The repository default branch still identifies itself as V1.0.0. Production hotfix work discussed/tested after V2.0.0 must therefore be reconciled into source control before any later release is treated as canonical. A future agent must verify the actual deployed version/source and must not claim repository/production parity until that reconciliation is committed and tested.
+## Reporting and transport
 
-## Rules for future implementation
+Reporting is manual: select month -> verify/edit costs -> Preview -> Send Email and/or print/Save as PDF. Dashboard/report calculations must come from shared normalized data. Email is HTML and contains the useful report body. Test email exists. Keep only lightweight last-sent metadata; no PDF archive unless requirements explicitly change.
 
-Before implementing a feature, write/approve the behavior and identify whether it changes business semantics, cached payload shape, snapshots, REST contract, report contract, or permissions. Add failing tests first for business logic/regressions. Keep the existing single-pass aggregation invariant unless measurement proves a different design is necessary. Prefer extending existing normalized data over adding extra monthly requests. Any new settings should be plugin-owned compact options unless scale genuinely requires a table.
+The initial production V2 rollout returned WordPress 404 `rest_no_route` for report preview/send endpoints even though the development package contained the routes. Production hardening therefore added a WordPress `admin-ajax.php` fallback for report actions when the REST request returns HTTP 404. The fallback decision must be based on HTTP status, not localized error-message text. Primary and fallback transports must enforce equivalent nonce/capability checks and call the same report service.
 
-For UI changes, preserve one top-level Sales Dashboard page with Sales/Commission tabs unless a future approved design intentionally changes navigation. Keep English UI, responsive behavior, accessible states, custom lightweight SVG charts, and safe DOM rendering.
+Browser print/Save-as-PDF is the approved lightweight PDF strategy. Avoid introducing Dompdf/TCPDF unless requirements materially change. Open the print window synchronously from the user gesture before asynchronous report fetching where necessary to avoid popup blockers.
 
-## Definition of safe continuation
+## Responsive UI lesson
 
-A future AI should be able to answer: what data is read, what data is written, where each business rule lives, how old orders are classified, what invalidates cache, whether a feature changes the report contract, and how the release will be verified. If any answer is unclear, inspect source/tests and update this handoff before packaging.
+Production testing found large KPI values clipped vertically on desktop and mobile. The underlying problem was value text combined with restrictive overflow/line-height behavior. Regression testing must include realistic large currency values, not only short sample numbers, at desktop and mobile widths. Do not solve clipping by blindly making every card taller; fix the text/value layout safely.
+
+## Release/source integrity warning
+
+A release ZIP is never the canonical source by itself. Source, tests, plugin header version, `WSD_VERSION`, readme stable tag/changelog, cache schema expectations, and ZIP filename/content must describe the same release.
+
+At the time this handoff was updated, production had been tested with V2.0.2 hotfix packaging while the GitHub feature branch still required full source reconciliation. A future AI must inspect repository state rather than assuming a production ZIP hotfix was automatically committed. Never build the next feature on an older GitHub source while silently carrying fixes only in a ZIP.
+
+## Performance invariants
+
+Use WooCommerce CRUD/query APIs; no direct `wp_posts`/`wp_postmeta` analytics. Preserve the single monthly aggregation pass. Avoid per-line repeated product/database lookups. Load plugin CSS/JS only on Sales Dashboard. No automatic polling, cron, telemetry, remote assets, or storefront processing. Cache derived monthly data and invalidate narrowly.
+
+## Safe continuation
+
+Before packaging, a future AI should be able to answer: what data is read/written; where each business rule lives; how snapshots and manual overrides interact; what invalidates cache; whether cached schema changed; whether dashboard/report values share one source; and how both cold-cache and warm-cache upgrades were verified. If any answer is unclear, inspect source/tests and update this handoff before release.
