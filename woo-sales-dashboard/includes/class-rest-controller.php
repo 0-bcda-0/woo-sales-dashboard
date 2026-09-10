@@ -58,6 +58,9 @@ final class WSD_REST_Controller {
     public function save_settings(WP_REST_Request $request) {
         try {
             $changedBundle = false;
+            $email = $request->get_param('reportEmail');
+            $rawEmail = $email === null ? null : trim((string)$email);
+            if ($rawEmail !== null && $rawEmail !== '' && ! is_email($rawEmail)) return new WP_Error('wsd_invalid_email', 'Enter a valid report email.', ['status'=>400]);
             $bundleSkus = $request->get_param('bundleSkus');
             if ($bundleSkus !== null) {
                 if (! is_array($bundleSkus)) return new WP_Error('wsd_invalid_skus', 'Bundle SKUs must be an array.', ['status'=>400]);
@@ -65,12 +68,7 @@ final class WSD_REST_Controller {
                 $after = $this->settings->save_bundle_skus($bundleSkus);
                 $changedBundle = $before !== $after;
             }
-            $email = $request->get_param('reportEmail');
-            if ($email !== null) {
-                $rawEmail = trim((string)$email);
-                if ($rawEmail !== '' && ! is_email($rawEmail)) return new WP_Error('wsd_invalid_email', 'Enter a valid report email.', ['status'=>400]);
-                $this->settings->save_report_email($rawEmail);
-            }
+            if ($rawEmail !== null) $this->settings->save_report_email($rawEmail);
             return rest_ensure_response([
                 'bundleSkus' => $this->settings->get_bundle_skus(),
                 'reportEmail' => $this->settings->get_report_email(),
