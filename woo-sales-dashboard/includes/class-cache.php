@@ -8,6 +8,8 @@ final class WSD_Cache {
     private const CURRENT_TTL = 300;
     private const HISTORICAL_TTL = 31536000;
 
+    public function __construct(private ?WSD_Forecast_History_Store $forecastHistory = null) {}
+
     public function key(string $month): string { return self::PREFIX . str_replace('-', '_', $month); }
     public function is_current_month(string $month): bool { return $month === wp_date('Y-m'); }
     public function get(string $month, int $classificationRevision = 1) {
@@ -23,7 +25,10 @@ final class WSD_Cache {
         $aggregate['_classificationRevision'] = $classificationRevision;
         return set_transient($this->key($month), $aggregate, $this->is_current_month($month) ? self::CURRENT_TTL : self::HISTORICAL_TTL);
     }
-    public function delete(string $month): bool { return delete_transient($this->key($month)); }
+    public function delete(string $month): bool {
+        if ($this->forecastHistory) $this->forecastHistory->delete_month($month);
+        return delete_transient($this->key($month));
+    }
 
     public function register_invalidation_hooks(): void {
         add_action('woocommerce_new_order', [$this, 'invalidate_order']);
