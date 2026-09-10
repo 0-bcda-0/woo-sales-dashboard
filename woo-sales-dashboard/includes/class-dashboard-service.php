@@ -55,6 +55,7 @@ final class WSD_Dashboard_Service {
             $netShipping = max(0.0, (float) $order->get_shipping_total() + (float) $order->get_shipping_tax() - abs((float) $order->get_total_shipping_refunded()));
             $orderItems = 0.0;
             $isVip = $this->snapshotService ? $this->snapshotService->is_vip_order($order) : false;
+            $forceOrderStandard = $this->snapshotService ? $this->snapshotService->is_force_standard_order($order) : false;
             $vipOrderRevenue = 0.0;
 
             foreach ($order->get_items('line_item') as $itemId => $item) {
@@ -62,11 +63,13 @@ final class WSD_Dashboard_Service {
                 $orderItems += $netQty;
                 $netLine = max(0.0, (float) $item->get_total() + (float) $item->get_total_tax() - abs((float) $order->get_total_refunded_for_item($itemId, true)));
 
+                $isBundle = $this->snapshotService && $this->snapshotService->is_bundle_item($order, $item);
+                $forceItemStandard = $this->snapshotService ? $this->snapshotService->is_force_standard_item($item) : false;
                 $bucket = 'standard';
-                if ($isVip) {
+                if (! $forceOrderStandard && $isVip) {
                     $bucket = 'vip';
                     $vipOrderRevenue += $netLine;
-                } elseif ($this->snapshotService && $this->snapshotService->is_bundle_item($order, $item)) {
+                } elseif (! $forceOrderStandard && ! $forceItemStandard && $isBundle) {
                     $bucket = 'bundle';
                 }
 
@@ -75,8 +78,11 @@ final class WSD_Dashboard_Service {
                 $out['commissionSource'][$sourceKey] += $netLine;
                 $out['daily'][$date][$sourceKey] += $netLine;
 
-                if ($bucket === 'bundle' && $netLine > 0.0) {
+                if (! $isVip && $isBundle && $netLine > 0.0) {
                     $out['specialSales']['bundle'][] = [
+                        'orderId' => method_exists($order, 'get_id') ? (int)$order->get_id() : 0,
+                        'itemId' => (int)$itemId,
+                        'forceStandard' => $forceOrderStandard || $forceItemStandard,
                         'date' => $date,
                         'orderNumber' => $this->order_number($order),
                         'product' => (string) $item->get_name(),
@@ -98,12 +104,20 @@ final class WSD_Dashboard_Service {
                 $out['products'][$productId]['revenue'] += $netLine;
             }
 
-            if ($isVip && $vipOrderRevenue > 0.0) {
+            if ($isVip) {
+                $vipDisplayRevenue = 0.0;
+                foreach ($order->get_items('line_item') as $vipItemId => $vipItem) {
+                    $vipDisplayRevenue += max(0.0, (float)$vipItem->get_total() + (float)$vipItem->get_total_tax() - abs((float)$order->get_total_refunded_for_item($vipItemId, true)));
+                }
+            }
+            if ($isVip && $vipDisplayRevenue > 0.0) {
                 $out['specialSales']['vip'][] = [
+                    'orderId' => method_exists($order, 'get_id') ? (int)$order->get_id() : 0,
+                    'forceStandard' => $forceOrderStandard,
                     'date' => $date,
                     'orderNumber' => $this->order_number($order),
                     'customer' => $this->customer_name($order),
-                    'revenue' => $vipOrderRevenue,
+                    'revenue' => $vipDisplayRevenue,
                 ];
             }
 
