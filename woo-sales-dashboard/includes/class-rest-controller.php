@@ -12,7 +12,11 @@ final class WSD_REST_Controller {
         private WSD_Report_Service $reportService
     ) {}
 
-    public function register(): void { add_action('rest_api_init', [$this, 'routes']); }
+    public function register(): void {
+        add_action('rest_api_init', [$this, 'routes']);
+        add_action('wp_ajax_wsd_preview_report', [$this, 'ajax_preview_report']);
+        add_action('wp_ajax_wsd_send_report', [$this, 'ajax_send_report']);
+    }
 
     public function routes(): void {
         $permission = static fn() => current_user_can('view_woocommerce_reports');
@@ -38,6 +42,61 @@ final class WSD_REST_Controller {
         register_rest_route('woo-sales-dashboard/v1', '/report/send', [
             'methods' => WP_REST_Server::CREATABLE, 'callback' => [$this, 'send_report'], 'permission_callback' => $permission,
         ]);
+        register_rest_route('woo-sales-dashboard/v1', '/commission-override', [
+            'methods' => WP_REST_Server::CREATABLE, 'callback' => [$this, 'save_commission_override'], 'permission_callback' => $permission,
+        ]);
+    }
+
+    public function ajax_preview_report(): void {
+        $this->ajax_guard();
+        $month = sanitize_text_field((string)($_POST['month'] ?? ''));
+        $valid = $this->validate_month($month);
+        if (is_wp_error($valid)) wp_send_json_error(['message'=>$valid->get_error_message()], 400);
+        $mode = (string)($_POST['mode'] ?? '') === 'print' ? 'print' : 'preview';
+        $payload = $this->reportService->build_payload($month, $this->month_payload($month));
+        wp_send_json_success(['payload'=>$payload,'html'=>$this->reportService->render_html($payload,$mode)]);
+    }
+
+    public function ajax_send_report(): void {
+        $this->ajax_guard();
+        $month = sanitize_text_field((string)($_POST['month'] ?? ''));
+        $valid = $this->validate_month($month);
+        if (is_wp_error($valid)) wp_send_json_error(['message'=>$valid->get_error_message()], 400);
+        $recipient = sanitize_email((string)($_POST['recipient'] ?? $this->settings->get_report_email()));
+        if (! is_email($recipient)) wp_send_json_error(['message'=>'Enter a valid report email.'], 400);
+        $payload = $this->reportService->build_payload($month, $this->month_payload($month));
+        $subject = 'Monthly Commission Report — ' . $payload['monthLabel'];
+        $sent = wp_mail($recipient, $subject, $this->reportService->render_html($payload,'email'), ['Content-Type: text/html; charset=UTF-8']);
+        if (! $sent) wp_send_json_error(['message'=>'WordPress could not send the report email.'], 500);
+        $audit = $this->settings->mark_sent($month, $recipient, current_time('c'));
+        wp_send_json_success(['sent'=>true,'recipient'=>$recipient,'reportAudit'=>['last_sent_at'=>$audit['last_sent_at'],'last_sent_to'=>$audit['last_sent_to']]]);
+    }
+
+    public function save_commission_override(WP_REST_Request $request) {
+        $type = sanitize_key((string)$request->get_param('type'));
+        $orderId = absint($request->get_param('orderId'));
+        $itemId = absint($request->get_param('itemId'));
+        $force = (bool)$request->get_param('forceStandard');
+        if (! in_array($type, ['vip','bundle'], true) || $orderId <= 0) return new WP_Error('wsd_invalid_override', 'Invalid commission override.', ['status'=>400]);
+        $order = wc_get_order($orderId);
+        if (! $order) return new WP_Error('wsd_order_not_found', 'Order was not found.', ['status'=>404]);
+        if ($type === 'vip') {
+            $order->update_meta_data(WSD_Snapshot_Service::FORCE_STANDARD_ORDER_META, $force ? '1' : '0');
+            $order->save();
+        } else {
+            $items = $order->get_items('line_item');
+            if ($itemId <= 0 || ! isset($items[$itemId])) return new WP_Error('wsd_item_not_found', 'Order item was not found.', ['status'=>404]);
+            $items[$itemId]->update_meta_data(WSD_Snapshot_Service::FORCE_STANDARD_ITEM_META, $force ? '1' : '0');
+            $items[$itemId]->save();
+        }
+        $created = $order->get_date_created();
+        if ($created) $this->cache->delete($created->setTimezone(wp_timezone())->format('Y-m'));
+        return rest_ensure_response(['saved'=>true,'forceStandard'=>$force]);
+    }
+
+    private function ajax_guard(): void {
+        if (! current_user_can('view_woocommerce_reports')) wp_send_json_error(['message'=>'You do not have permission to use this action.'], 403);
+        if (! check_ajax_referer('wsd_report_ajax', 'nonce', false)) wp_send_json_error(['message'=>'Security check failed. Refresh the page and try again.'], 403);
     }
 
     public function month(WP_REST_Request $request) {
