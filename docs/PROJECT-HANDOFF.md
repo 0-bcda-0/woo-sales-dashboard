@@ -36,7 +36,7 @@ The override is intentionally narrow:
 - Bundle row: override applies only to that Bundle line item and forces that line to Standard.
 - Override wins before automatic VIP/Bundle classification.
 - The special-sales row remains visible while overridden and the checkbox remains reversible, so an admin can restore automatic special-rate treatment.
-- Do not rewrite the historical VIP/Bundle snapshot to implement this override. It is separate plugin-owned override state.
+- Do not rewrite the historical VIP/Bundle snapshot to implement this override. It is separate plugin-owned override state stored in `_wsd_force_standard_commission` meta.
 - Changing an override must invalidate only the affected order month, not globally flush all monthly aggregates.
 - The write request must contain a valid `orderId`; Bundle additionally needs its item identifier. `itemId = 0` is valid for an order-level VIP override.
 
@@ -64,11 +64,11 @@ Browser print/Save-as-PDF is the approved lightweight PDF strategy. Avoid introd
 
 Production testing found large KPI values clipped vertically on desktop and mobile. The underlying problem was value text combined with restrictive overflow/line-height behavior. Regression testing must include realistic large currency values, not only short sample numbers, at desktop and mobile widths. Do not solve clipping by blindly making every card taller; fix the text/value layout safely.
 
-## Release/source integrity warning
+## Canonical release state
 
-A release ZIP is never the canonical source by itself. Source, tests, plugin header version, `WSD_VERSION`, readme stable tag/changelog, cache schema expectations, and ZIP filename/content must describe the same release.
+V2.0.2 production hotfix source has been reconciled back into `feat/v2-commission`, together with permanent regression tests for the cache-schema/warm-cache failure and Count-as-Standard behavior. The branch version metadata and WordPress stable tag are 2.0.2. The remaining release step at the time of this note is to run the final release checklist, build/inspect the canonical binary ZIP from this reconciled source, and merge the verified feature branch into `main`.
 
-At the time this handoff was updated, production had been tested with V2.0.2 hotfix packaging while the GitHub feature branch still required full source reconciliation. A future AI must inspect repository state rather than assuming a production ZIP hotfix was automatically committed. Never build the next feature on an older GitHub source while silently carrying fixes only in a ZIP.
+A release ZIP is never the canonical source by itself. Source, tests, plugin header version, `WSD_VERSION`, readme stable tag/changelog, cache schema expectations, and ZIP filename/content must describe the same release. Never build the next feature on an older GitHub source while silently carrying fixes only in a ZIP.
 
 ## Performance invariants
 
