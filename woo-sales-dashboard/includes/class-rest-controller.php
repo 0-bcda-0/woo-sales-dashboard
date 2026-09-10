@@ -275,10 +275,18 @@ final class WSD_REST_Controller {
     private function warm_forecast_history(string $currentMonth, int $limit = 2): void {
         if (! $this->forecastHistory || $limit <= 0 || ! $this->cache->is_current_month($currentMonth)) return;
         $known = array_fill_keys($this->forecastHistory->months(), true);
-        $cursor = DateTimeImmutable::createFromFormat('!Y-m', $currentMonth, wp_timezone());
-        if (! $cursor) return;
-        $cursor = $cursor->modify('-1 month');
+        $current = DateTimeImmutable::createFromFormat('!Y-m', $currentMonth, wp_timezone());
+        if (! $current) return;
+
         $processed = 0;
+        $seasonalMonth = $current->modify('-1 year')->format('Y-m');
+        if (! isset($known[$seasonalMonth]) && $processed < $limit) {
+            $this->aggregate($seasonalMonth);
+            $known[$seasonalMonth] = true;
+            $processed++;
+        }
+
+        $cursor = $current->modify('-1 month');
         for ($i = 0; $i < 36 && $processed < $limit; $i++, $cursor = $cursor->modify('-1 month')) {
             $month = $cursor->format('Y-m');
             if (isset($known[$month])) continue;
