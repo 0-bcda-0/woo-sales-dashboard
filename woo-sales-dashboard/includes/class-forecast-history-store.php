@@ -34,12 +34,14 @@ final class WSD_Forecast_History_Store {
             $sales[] = max(0.0, (float)($day['sales'] ?? 0.0));
             $commission[] = max(0.0, (float)($day['commissionToPay'] ?? 0.0));
         }
-        $all = $this->get_all();
-        $all[$month] = [
+        $next = [
             'dailySales' => $sales,
             'dailyCommission' => $commission,
             'marketing' => max(0.0, $marketing),
         ];
+        $all = $this->get_all();
+        if (isset($all[$month]) && $all[$month] === $next) return;
+        $all[$month] = $next;
         ksort($all);
         update_option(self::OPTION, ['_schemaVersion' => self::SCHEMA_VERSION, 'months' => $all], false);
     }
