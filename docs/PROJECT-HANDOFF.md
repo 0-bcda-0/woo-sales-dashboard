@@ -66,7 +66,9 @@ Production testing found large KPI values clipped vertically on desktop and mobi
 
 ## Canonical release state
 
-V2.0.2 production hotfix source has been reconciled back into `feat/v2-commission`, together with permanent regression tests for the cache-schema/warm-cache failure and Count-as-Standard behavior. The branch version metadata and WordPress stable tag are 2.0.2. The remaining release step at the time of this note is to run the final release checklist, build/inspect the canonical binary ZIP from this reconciled source, and merge the verified feature branch into `main`.
+V2.0.2 is now the canonical source on `main`. Pull request #2 was squash-merged as commit `f34b24f192d5c4d805e0181ff1eeb348e1920114` after source reconciliation and verification. The production-tested 2.0.1/2.0.2 hotfix behavior is represented in source control, and permanent regression tests cover the Count-as-Standard behavior and stale aggregate cache schema failure.
+
+A final installable V2.0.2 ZIP was rebuilt from the reconciled runtime source and verified locally for archive integrity, one `woo-sales-dashboard/` root, PHP syntax, JavaScript syntax, version metadata, cache schema, hotfix regressions, and performance/source audit. The GitHub connector available during this release could not reliably upload the ~31 KB binary ZIP without truncation; therefore stale/corrupt `dist/` artifacts were removed rather than committing a misleading archive. The verified ZIP was delivered directly outside GitHub. Future releases should commit a binary artifact only when the available GitHub path can preserve and verify its bytes/checksum.
 
 A release ZIP is never the canonical source by itself. Source, tests, plugin header version, `WSD_VERSION`, readme stable tag/changelog, cache schema expectations, and ZIP filename/content must describe the same release. Never build the next feature on an older GitHub source while silently carrying fixes only in a ZIP.
 
